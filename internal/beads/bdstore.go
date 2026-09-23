@@ -1937,7 +1937,7 @@ func (s *BdStore) waitForParentProjection(ctx context.Context, id, oldParentID, 
 		if err == nil {
 			switch current.ParentID {
 			case newParentID:
-				matches, matchErr := s.parentProjectionMatches(id, oldParentID, newParentID)
+				matches, matchErr := s.parentProjectionMatches(id, oldParentID, newParentID, current.Ephemeral)
 				if matchErr == nil && matches {
 					return nil
 				}
@@ -1961,9 +1961,14 @@ func (s *BdStore) waitForParentProjection(ctx context.Context, id, oldParentID, 
 	}
 }
 
-func (s *BdStore) parentProjectionMatches(id, oldParentID, newParentID string) (bool, error) {
+func (s *BdStore) parentProjectionMatches(id, oldParentID, newParentID string, ephemeral bool) (bool, error) {
+	tier := TierIssues
+	if ephemeral {
+		// Policy-wrapped child reads include ephemeral rows; bd list alone does not.
+		tier = TierBoth
+	}
 	if oldParentID != "" {
-		oldChildren, err := s.List(ListQuery{ParentID: oldParentID})
+		oldChildren, err := s.List(ListQuery{ParentID: oldParentID, TierMode: tier})
 		if err != nil {
 			return false, fmt.Errorf("listing old parent %q children: %w", oldParentID, err)
 		}
@@ -1972,7 +1977,7 @@ func (s *BdStore) parentProjectionMatches(id, oldParentID, newParentID string) (
 		}
 	}
 	if newParentID != "" {
-		newChildren, err := s.List(ListQuery{ParentID: newParentID})
+		newChildren, err := s.List(ListQuery{ParentID: newParentID, TierMode: tier})
 		if err != nil {
 			return false, fmt.Errorf("listing new parent %q children: %w", newParentID, err)
 		}

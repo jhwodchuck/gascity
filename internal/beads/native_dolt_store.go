@@ -1605,7 +1605,7 @@ func (s *NativeDoltStore) WaitForParentProjection(ctx context.Context, id, oldPa
 		if err == nil {
 			switch current.ParentID {
 			case newParentID:
-				matches, matchErr := s.parentProjectionMatches(id, oldParentID, newParentID)
+				matches, matchErr := s.parentProjectionMatches(id, oldParentID, newParentID, current.Ephemeral)
 				if matchErr == nil && matches {
 					return nil
 				}
@@ -1629,9 +1629,14 @@ func (s *NativeDoltStore) WaitForParentProjection(ctx context.Context, id, oldPa
 	}
 }
 
-func (s *NativeDoltStore) parentProjectionMatches(id, oldParentID, newParentID string) (bool, error) {
+func (s *NativeDoltStore) parentProjectionMatches(id, oldParentID, newParentID string, ephemeral bool) (bool, error) {
+	var opts []QueryOpt
+	if ephemeral {
+		// Policy-wrapped child reads include ephemeral rows.
+		opts = []QueryOpt{WithBothTiers}
+	}
 	if oldParentID != "" {
-		oldChildren, err := s.Children(oldParentID)
+		oldChildren, err := s.Children(oldParentID, opts...)
 		if err != nil {
 			return false, fmt.Errorf("listing old parent %q children: %w", oldParentID, err)
 		}
@@ -1640,7 +1645,7 @@ func (s *NativeDoltStore) parentProjectionMatches(id, oldParentID, newParentID s
 		}
 	}
 	if newParentID != "" {
-		newChildren, err := s.Children(newParentID)
+		newChildren, err := s.Children(newParentID, opts...)
 		if err != nil {
 			return false, fmt.Errorf("listing new parent %q children: %w", newParentID, err)
 		}
